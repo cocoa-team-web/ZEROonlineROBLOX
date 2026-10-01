@@ -1,6 +1,6 @@
 // После публикации Cloudflare Worker вставь сюда его URL.
 // Например: https://roblox-empty-finder.yourname.workers.dev
-const API_BASE = "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
+const API_BASE = "https://roblox-empty-finder.flowersonickmer87.workers.dev";
 
 const gameUrl = document.getElementById("gameUrl");
 const startBtn = document.getElementById("startBtn");
