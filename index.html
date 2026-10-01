@@ -1,69 +1,44 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Roblox Empty Server Finder</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="app">
-    <header>
-      <div class="logo">R<span>Ø</span>BLOX</div>
-      <div>
-        <h1>Empty Server Finder</h1>
-        <p>Поиск публичного сервера Roblox с 0 игроков</p>
-      </div>
-    </header>
-
+  <main class="wrap">
     <section class="card">
-      <label for="gameUrl">Ссылка на игру Roblox</label>
-      <div class="input-row">
-        <input id="gameUrl" type="url" placeholder="https://www.roblox.com/games/123456789/..." autocomplete="off">
+      <h1>Roblox Empty Server Finder</h1>
+      <p class="muted">Вставь ссылку на игру Roblox — сайт будет искать публичный сервер с <b>0 игроков</b>.</p>
+
+      <input id="gameUrl" type="url"
+        value="https://www.roblox.com/games/107164765081465/Steal-A-Verity"
+        placeholder="https://www.roblox.com/games/123456789/Game">
+
+      <div class="row">
         <button id="startBtn">Начать поиск</button>
+        <button id="stopBtn" class="secondary" disabled>Остановить</button>
       </div>
 
-      <div class="controls">
-        <label class="toggle">
-          <input id="autoRetry" type="checkbox" checked>
-          <span></span> Повторять поиск автоматически
-        </label>
-        <label>
-          Интервал:
-          <select id="interval">
-            <option value="3">3 сек</option>
-            <option value="5" selected>5 сек</option>
-            <option value="10">10 сек</option>
-            <option value="20">20 сек</option>
-          </select>
-        </label>
+      <div class="stats">
+        <div><span>Статус</span><b id="status">Готов</b></div>
+        <div><span>Проверено</span><b id="checked">0</b></div>
+        <div><span>Найдено пустых</span><b id="found">0</b></div>
       </div>
-    </section>
 
-    <section class="stats">
-      <div><b id="status">Готов</b><small>Статус</small></div>
-      <div><b id="checked">0</b><small>Проверено серверов</small></div>
-      <div><b id="players">—</b><small>Игроков в найденном</small></div>
-    </section>
-
-    <section id="result" class="result hidden">
-      <div class="success">✓</div>
-      <div>
-        <h2>Пустой сервер найден!</h2>
+      <div id="result" class="result hidden">
+        <h2>Пустой сервер найден</h2>
         <p id="serverInfo"></p>
-        <a id="joinBtn" class="join" target="_blank" rel="noopener">Открыть сервер</a>
+        <div class="row">
+          <a id="joinBtn" class="button" href="#" target="_blank" rel="noopener">Открыть в Roblox</a>
+          <a id="webJoinBtn" class="button secondary" href="#" target="_blank" rel="noopener">Web-ссылка</a>
+        </div>
+        <p class="warning">Пустой сервер может закрыться или принять игрока до нажатия кнопки. Если Roblox открыл другой сервер, это ограничение текущих deep-link механизмов Roblox.</p>
       </div>
-    </section>
 
-    <section class="log-card">
-      <h2>Журнал поиска</h2>
-      <div id="log" class="log"><div>Введите ссылку на игру и нажмите «Начать поиск».</div></div>
+      <pre id="log"></pre>
     </section>
-
-    <footer>
-      <p>Работает с публичными Roblox-серверами. Не требует логина Roblox.</p>
-      <p class="muted">API endpoint настраивается в <code>script.js</code>.</p>
-    </footer>
   </main>
   <script src="script.js"></script>
 </body>

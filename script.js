@@ -1,164 +1,155 @@
-/*
- Roblox Empty Server Finder
- ВАЖНО: GitHub Pages не может безопасно обращаться к Roblox API напрямую
- из-за CORS. Укажи адрес своего CORS-прокси в API_BASE.
-
- Прокси должен принимать:
-   GET ?placeId=123456
-
- и возвращать:
- {
-   "data": [
-     {"id":"JOB_ID","playing":0,"maxPlayers":12}
-   ],
-   "nextPageCursor": null
- }
-*/
-
-const API_BASE = "";
+// После публикации Cloudflare Worker вставь сюда его URL.
+// Например: https://roblox-empty-finder.yourname.workers.dev
+const API_BASE = "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
 
 const gameUrl = document.getElementById("gameUrl");
 const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
 const statusEl = document.getElementById("status");
 const checkedEl = document.getElementById("checked");
+const foundEl = document.getElementById("found");
 const resultEl = document.getElementById("result");
-const serverInfoEl = document.getElementById("serverInfo");
+const serverInfo = document.getElementById("serverInfo");
 const joinBtn = document.getElementById("joinBtn");
+const webJoinBtn = document.getElementById("webJoinBtn");
 const logEl = document.getElementById("log");
 
 let running = false;
 let checked = 0;
+let found = 0;
 
-function writeLog(text) {
-  logEl.textContent += "\n" + new Date().toLocaleTimeString() + " — " + text;
-  logEl.scrollTop = logEl.scrollHeight;
+function log(msg){
+  const time = new Date().toLocaleTimeString();
+  logEl.textContent = `${time} — ${msg}\n` + logEl.textContent;
 }
 
-function getPlaceId(urlText) {
-  try {
-    const url = new URL(urlText);
-    const match = url.pathname.match(/\/games\/(\d+)/i);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
+function getPlaceId(value){
+  try{
+    const url = new URL(value.trim());
+    const m = url.pathname.match(/\/games\/(\d+)/i);
+    if(m) return m[1];
+    const qp = url.searchParams.get("placeId");
+    if(qp && /^\d+$/.test(qp)) return qp;
+  }catch(_){}
+  const m = value.match(/(?:games\/|placeId=)(\d+)/i);
+  return m ? m[1] : null;
 }
 
-function stopSearch() {
-  running = false;
-  startBtn.textContent = "Начать поиск";
-  statusEl.textContent = "Остановлен";
+function setStatus(text){ statusEl.textContent = text; }
+
+function showServer(server, placeId){
+  found++;
+  foundEl.textContent = found;
+  const jobId = server.id;
+  const playing = Number(server.playing ?? 0);
+  const maxPlayers = Number(server.maxPlayers ?? 0);
+
+  // Protocol deep-link: designed to ask the Roblox app to open this JobId.
+  const protocolUrl =
+    `roblox://experiences/start?placeId=${encodeURIComponent(placeId)}&gameInstanceId=${encodeURIComponent(jobId)}`;
+
+  // Web deep-link. Roblox has documented gameInstanceId, but reports exist of
+  // the web form sometimes falling back to a random server.
+  const webUrl =
+    `https://www.roblox.com/games/start?placeId=${encodeURIComponent(placeId)}&gameInstanceId=${encodeURIComponent(jobId)}`;
+
+  serverInfo.textContent = `JobId: ${jobId} · Игроков: ${playing}/${maxPlayers}`;
+  joinBtn.href = protocolUrl;
+  webJoinBtn.href = webUrl;
+  resultEl.classList.remove("hidden");
+  setStatus("Пустой сервер найден");
+  log(`Найден сервер 0/${maxPlayers}: ${jobId}`);
 }
 
-async function checkServers(placeId) {
-  if (!API_BASE) {
-    throw new Error("API_BASE не настроен в script.js");
+async function findEmpty(placeId){
+  if(!API_BASE || API_BASE.includes("PASTE_YOUR")){
+    setStatus("Нужен API-прокси");
+    log("Вставь URL Cloudflare Worker в API_BASE в script.js.");
+    return;
   }
 
   let cursor = "";
+  const maxPages = 20;
 
-  for (let page = 0; page < 20 && running; page++) {
-    let url = API_BASE + "?placeId=" + encodeURIComponent(placeId);
+  for(let page=1; page<=maxPages && running; page++){
+    const u = new URL(API_BASE);
+    u.searchParams.set("placeId", placeId);
+    if(cursor) u.searchParams.set("cursor", cursor);
 
-    if (cursor) {
-      url += "&cursor=" + encodeURIComponent(cursor);
+    log(`Запрос страницы ${page}...`);
+    const response = await fetch(u.toString(), {cache:"no-store"});
+    const body = await response.json().catch(()=>({}));
+
+    if(!response.ok){
+      throw new Error(body.error || `HTTP ${response.status}`);
     }
 
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error("HTTP " + response.status);
-    }
-
-    const json = await response.json();
-    const servers = Array.isArray(json.data) ? json.data : [];
-
+    const servers = Array.isArray(body.data) ? body.data : [];
     checked += servers.length;
-    checkedEl.textContent = "Проверено серверов: " + checked;
+    checkedEl.textContent = checked;
 
-    const empty = servers.find(server => Number(server.playing) === 0);
-
-    if (empty) {
-      running = false;
-      statusEl.textContent = "Пустой сервер найден";
-      resultEl.hidden = false;
-
-      serverInfoEl.textContent =
-        "Server ID: " + (empty.id || "не указан") +
-        " | Игроков: 0/" + (empty.maxPlayers ?? "?");
-
-      if (empty.joinUrl) {
-        joinBtn.href = empty.joinUrl;
-      } else {
-        joinBtn.href =
-          "https://www.roblox.com/games/start?placeId=" +
-          encodeURIComponent(placeId) +
-          "&gameInstanceId=" +
-          encodeURIComponent(empty.id || "");
+    for(const server of servers){
+      if(Number(server.playing) === 0){
+        showServer(server, placeId);
+        return true;
       }
-
-      writeLog("Найден сервер с 0 игроками.");
-      startBtn.textContent = "Начать поиск";
-      return true;
     }
 
-    cursor = json.nextPageCursor || "";
-
-    if (!cursor) break;
+    cursor = body.nextPageCursor || "";
+    if(!cursor) break;
   }
 
   return false;
 }
 
-async function startSearch() {
-  if (running) {
-    stopSearch();
-    return;
-  }
-
-  const placeId = getPlaceId(gameUrl.value.trim());
-
-  if (!placeId) {
-    statusEl.textContent = "Ошибка";
-    writeLog("Неверная ссылка. Нужен адрес вида /games/123456789/...");
-    return;
-  }
-
-  if (!API_BASE) {
-    statusEl.textContent = "Нужен API-прокси";
-    writeLog("Открой script.js и укажи API_BASE.");
+async function start(){
+  const placeId = getPlaceId(gameUrl.value);
+  if(!placeId){
+    setStatus("Неверная ссылка");
+    log("Не удалось определить placeId.");
     return;
   }
 
   running = true;
   checked = 0;
-  checkedEl.textContent = "Проверено серверов: 0";
-  resultEl.hidden = true;
-  startBtn.textContent = "Остановить";
-  statusEl.textContent = "Идёт поиск...";
+  found = 0;
+  checkedEl.textContent = "0";
+  foundEl.textContent = "0";
+  resultEl.classList.add("hidden");
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
 
-  writeLog("Поиск для placeId " + placeId);
+  setStatus("Ищу...");
+  log(`Ищу пустой публичный сервер для placeId ${placeId}`);
 
-  while (running) {
-    try {
-      const found = await checkServers(placeId);
+  while(running){
+    try{
+      const foundEmpty = await findEmpty(placeId);
+      if(foundEmpty) break;
 
-      if (found) return;
-
-      if (!running) return;
-
-      statusEl.textContent = "Сервер не найден. Повтор через 5 секунд...";
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      if (running) {
-        statusEl.textContent = "Идёт поиск...";
+      if(running){
+        setStatus("Пустого сервера пока нет");
+        log("В просмотренных страницах серверов с 0 игроками нет. Повтор через 5 секунд...");
+        await new Promise(r=>setTimeout(r,5000));
       }
-    } catch (error) {
-      writeLog("Ошибка: " + error.message);
-      stopSearch();
-      return;
+    }catch(err){
+      setStatus("Ошибка API");
+      log(`Ошибка: ${err.message}`);
+      await new Promise(r=>setTimeout(r,5000));
     }
   }
+
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  if(!running) setStatus("Остановлено");
 }
 
-startBtn.addEventListener("click", startSearch);
+function stop(){
+  running = false;
+  log("Поиск остановлен.");
+}
+
+startBtn.addEventListener("click", start);
+stopBtn.addEventListener("click", stop);
+
+log("Готов. Вставь URL игры и нажми «Начать поиск».");
